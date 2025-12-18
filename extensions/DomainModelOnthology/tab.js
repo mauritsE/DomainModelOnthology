@@ -23597,7 +23597,8 @@ async function collectOntologyData(studioPro) {
   for (const module of modules) {
     moduleInfos.push({
       name: module.name,
-      isMarketplace: module.fromAppStore
+      isMarketplace: module.fromAppStore,
+      isSystem: module.name === "System" || module.name === "MxModelReflection"
     });
     const domainModel = await studioPro.app.model.domainModels.getDomainModel(module.name);
     if (domainModel) {
@@ -23650,22 +23651,50 @@ async function collectOntologyData(studioPro) {
     modules: moduleInfos
   };
 }
+var MENDIX_COLORS = {
+  primary: "#0595DB",
+  // Mendix Blue
+  primaryDark: "#264AE5",
+  // Darker blue for accents
+  background: "#252526",
+  // Dark background
+  surface: "#2D2D30",
+  // Elevated surface
+  surfaceLight: "#3C3C3C",
+  // Lighter surface
+  border: "#3E3E42",
+  // Border color
+  text: "#CCCCCC",
+  // Primary text
+  textMuted: "#858585",
+  // Secondary text
+  textBright: "#FFFFFF",
+  // Bright text
+  success: "#76B947",
+  // Green
+  warning: "#F0AD4E",
+  // Orange/Yellow
+  error: "#E74856",
+  // Red
+  canvas: "#1E1E1E"
+  // Canvas/editor background
+};
 var MODULE_COLORS = [
-  "#4CAF50",
-  "#2196F3",
-  "#FF9800",
-  "#9C27B0",
-  "#F44336",
-  "#00BCD4",
-  "#FFEB3B",
-  "#795548",
-  "#607D8B",
-  "#E91E63",
-  "#3F51B5",
-  "#009688",
-  "#FFC107",
-  "#8BC34A",
-  "#673AB7"
+  "#0595DB",
+  "#76B947",
+  "#F0AD4E",
+  "#9B59B6",
+  "#E74856",
+  "#00B8D4",
+  "#FFD93D",
+  "#8D6E63",
+  "#78909C",
+  "#EC407A",
+  "#5C6BC0",
+  "#26A69A",
+  "#FFA726",
+  "#9CCC65",
+  "#7E57C2"
 ];
 function getModuleColor(moduleName, modules) {
   const index = modules.findIndex((m) => m.name === moduleName);
@@ -23805,7 +23834,7 @@ var EntityNode = ({ entity, isSelected, moduleColor, onClick, onDrag }) => {
         width: nodeWidth,
         height: nodeHeight,
         rx: 6,
-        fill: "rgba(0,0,0,0.2)"
+        fill: "rgba(0,0,0,0.4)"
       }
     ),
     /* @__PURE__ */ import_react.default.createElement(
@@ -23814,8 +23843,8 @@ var EntityNode = ({ entity, isSelected, moduleColor, onClick, onDrag }) => {
         width: nodeWidth,
         height: nodeHeight,
         rx: 6,
-        fill: "white",
-        stroke: isSelected ? "#1976D2" : moduleColor,
+        fill: MENDIX_COLORS.surface,
+        stroke: isSelected ? MENDIX_COLORS.primary : moduleColor,
         strokeWidth: isSelected ? 3 : 2
       }
     ),
@@ -23843,7 +23872,7 @@ var EntityNode = ({ entity, isSelected, moduleColor, onClick, onDrag }) => {
         x: nodeWidth / 2,
         y: 18,
         textAnchor: "middle",
-        fill: "white",
+        fill: MENDIX_COLORS.textBright,
         fontWeight: "bold",
         fontSize: 12
       },
@@ -23855,7 +23884,7 @@ var EntityNode = ({ entity, isSelected, moduleColor, onClick, onDrag }) => {
         x: nodeWidth / 2,
         y: headerHeight + 15,
         textAnchor: "middle",
-        fill: "#666",
+        fill: MENDIX_COLORS.textMuted,
         fontSize: 9,
         fontStyle: "italic"
       },
@@ -23867,19 +23896,19 @@ var EntityNode = ({ entity, isSelected, moduleColor, onClick, onDrag }) => {
         key: attr.name,
         x: 10,
         y: headerHeight + 30 + idx * attributeHeight,
-        fill: "#333",
+        fill: MENDIX_COLORS.text,
         fontSize: 10
       },
       attr.name,
       ": ",
-      /* @__PURE__ */ import_react.default.createElement("tspan", { fill: "#666" }, attr.type)
+      /* @__PURE__ */ import_react.default.createElement("tspan", { fill: MENDIX_COLORS.textMuted }, attr.type)
     )),
     entity.attributes.length > 8 && /* @__PURE__ */ import_react.default.createElement(
       "text",
       {
         x: 10,
         y: headerHeight + 30 + 8 * attributeHeight,
-        fill: "#999",
+        fill: MENDIX_COLORS.textMuted,
         fontSize: 10,
         fontStyle: "italic"
       },
@@ -23950,7 +23979,7 @@ var AssociationEdge = ({ association, sourcePos, targetPos, isHighlighted }) => 
       x: labelX,
       y: labelY + 8,
       textAnchor: "middle",
-      fill: "#999",
+      fill: MENDIX_COLORS.textMuted,
       fontSize: 8
     },
     association.type === "Reference" ? "1:N" : "N:M"
@@ -23987,8 +24016,8 @@ var OntologyViewer = ({ studioPro }) => {
         setError(null);
         const ontologyData = await collectOntologyData(studioPro);
         setData(ontologyData);
-        const nonMarketplaceModules = ontologyData.modules.filter((m) => !m.isMarketplace).map((m) => m.name);
-        setSelectedModules(new Set(nonMarketplaceModules));
+        const defaultModules = ontologyData.modules.filter((m) => !m.isMarketplace && !m.isSystem).map((m) => m.name);
+        setSelectedModules(new Set(defaultModules));
         const initialPositions = calculateLayout(ontologyData.entities, ontologyData.associations);
         setPositions(initialPositions);
         setLoading(false);
@@ -24010,9 +24039,9 @@ var OntologyViewer = ({ studioPro }) => {
       return newSet;
     });
   };
-  const selectAllModules = (includeMarketplace) => {
+  const selectAllModules = (includeAll) => {
     if (data) {
-      const modules = includeMarketplace ? data.modules.map((m) => m.name) : data.modules.filter((m) => !m.isMarketplace).map((m) => m.name);
+      const modules = includeAll ? data.modules.map((m) => m.name) : data.modules.filter((m) => !m.isMarketplace && !m.isSystem).map((m) => m.name);
       setSelectedModules(new Set(modules));
     }
   };
@@ -24113,7 +24142,7 @@ var OntologyViewer = ({ studioPro }) => {
       onClick: () => selectAllModules(false),
       style: styles.dropdownActionButton
     },
-    "Non-Marketplace"
+    "Custom Only"
   ), /* @__PURE__ */ import_react.default.createElement(
     "button",
     {
@@ -24127,7 +24156,7 @@ var OntologyViewer = ({ studioPro }) => {
       key: module.name,
       style: {
         ...styles.moduleCheckboxLabel,
-        ...module.isMarketplace ? styles.marketplaceModule : {}
+        ...module.isMarketplace || module.isSystem ? styles.marketplaceModule : {}
       }
     },
     /* @__PURE__ */ import_react.default.createElement(
@@ -24149,7 +24178,8 @@ var OntologyViewer = ({ studioPro }) => {
       }
     ),
     module.name,
-    module.isMarketplace && /* @__PURE__ */ import_react.default.createElement("span", { style: styles.marketplaceBadge }, "MP")
+    module.isSystem && /* @__PURE__ */ import_react.default.createElement("span", { style: styles.systemBadge }, "SYS"),
+    module.isMarketplace && !module.isSystem && /* @__PURE__ */ import_react.default.createElement("span", { style: styles.marketplaceBadge }, "MP")
   ))))), /* @__PURE__ */ import_react.default.createElement(
     "button",
     {
@@ -24261,50 +24291,59 @@ var styles = {
     height: "100vh",
     display: "flex",
     flexDirection: "column",
-    backgroundColor: "#f5f5f5",
-    fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif"
+    backgroundColor: MENDIX_COLORS.background,
+    fontFamily: "'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, 'Helvetica Neue', sans-serif",
+    color: MENDIX_COLORS.text
   },
   toolbar: {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
-    padding: "10px 20px",
-    backgroundColor: "#1976D2",
-    color: "white",
-    boxShadow: "0 2px 4px rgba(0,0,0,0.2)"
+    padding: "8px 16px",
+    backgroundColor: MENDIX_COLORS.surface,
+    color: MENDIX_COLORS.text,
+    borderBottom: `1px solid ${MENDIX_COLORS.border}`
   },
   title: {
     margin: 0,
-    fontSize: "18px"
+    fontSize: "14px",
+    fontWeight: 600,
+    color: MENDIX_COLORS.textBright
   },
   controls: {
     display: "flex",
-    gap: "10px",
+    gap: "8px",
     alignItems: "center"
   },
   searchInput: {
-    padding: "8px 12px",
-    borderRadius: "4px",
-    border: "none",
-    width: "200px",
-    fontSize: "14px"
+    padding: "6px 10px",
+    borderRadius: "3px",
+    border: `1px solid ${MENDIX_COLORS.border}`,
+    backgroundColor: MENDIX_COLORS.surfaceLight,
+    color: MENDIX_COLORS.text,
+    width: "180px",
+    fontSize: "13px",
+    outline: "none"
   },
   moduleSelect: {
-    padding: "8px 12px",
-    borderRadius: "4px",
-    border: "none",
-    fontSize: "14px",
+    padding: "6px 10px",
+    borderRadius: "3px",
+    border: `1px solid ${MENDIX_COLORS.border}`,
+    backgroundColor: MENDIX_COLORS.surfaceLight,
+    color: MENDIX_COLORS.text,
+    fontSize: "13px",
     cursor: "pointer"
   },
   moduleDropdownContainer: {
     position: "relative"
   },
   moduleDropdownButton: {
-    padding: "8px 12px",
-    borderRadius: "4px",
-    border: "none",
-    backgroundColor: "white",
-    fontSize: "14px",
+    padding: "6px 10px",
+    borderRadius: "3px",
+    border: `1px solid ${MENDIX_COLORS.border}`,
+    backgroundColor: MENDIX_COLORS.surfaceLight,
+    color: MENDIX_COLORS.text,
+    fontSize: "13px",
     cursor: "pointer",
     minWidth: "150px",
     textAlign: "left"
@@ -24314,9 +24353,10 @@ var styles = {
     top: "100%",
     left: 0,
     marginTop: "4px",
-    backgroundColor: "white",
-    borderRadius: "4px",
-    boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
+    backgroundColor: MENDIX_COLORS.surface,
+    borderRadius: "3px",
+    border: `1px solid ${MENDIX_COLORS.border}`,
+    boxShadow: "0 4px 12px rgba(0,0,0,0.4)",
     zIndex: 1e3,
     minWidth: "250px",
     maxHeight: "400px",
@@ -24328,21 +24368,22 @@ var styles = {
     display: "flex",
     gap: "4px",
     padding: "8px",
-    backgroundColor: "#f5f5f5",
-    borderBottom: "1px solid #e0e0e0"
+    backgroundColor: MENDIX_COLORS.surfaceLight,
+    borderBottom: `1px solid ${MENDIX_COLORS.border}`
   },
   dropdownActionButton: {
     padding: "4px 8px",
     borderRadius: "3px",
-    border: "1px solid #ccc",
-    backgroundColor: "white",
+    border: `1px solid ${MENDIX_COLORS.border}`,
+    backgroundColor: MENDIX_COLORS.surface,
+    color: MENDIX_COLORS.text,
     fontSize: "11px",
     cursor: "pointer",
     flex: 1
   },
   dropdownDivider: {
     height: "1px",
-    backgroundColor: "#e0e0e0"
+    backgroundColor: MENDIX_COLORS.border
   },
   moduleList: {
     overflowY: "auto",
@@ -24355,16 +24396,17 @@ var styles = {
     gap: "8px",
     padding: "6px 12px",
     cursor: "pointer",
-    fontSize: "13px",
-    color: "#333",
+    fontSize: "12px",
+    color: MENDIX_COLORS.text,
     transition: "background-color 0.1s"
   },
   marketplaceModule: {
-    color: "#888",
+    color: MENDIX_COLORS.textMuted,
     fontStyle: "italic"
   },
   moduleCheckbox: {
-    cursor: "pointer"
+    cursor: "pointer",
+    accentColor: MENDIX_COLORS.primary
   },
   moduleColorDot: {
     width: "12px",
@@ -24377,131 +24419,151 @@ var styles = {
     fontSize: "10px",
     padding: "2px 4px",
     borderRadius: "3px",
-    backgroundColor: "#e0e0e0",
-    color: "#666"
+    backgroundColor: MENDIX_COLORS.surfaceLight,
+    color: MENDIX_COLORS.textMuted
+  },
+  systemBadge: {
+    marginLeft: "auto",
+    fontSize: "10px",
+    padding: "2px 4px",
+    borderRadius: "3px",
+    backgroundColor: MENDIX_COLORS.warning,
+    color: MENDIX_COLORS.background
   },
   zoomButton: {
-    padding: "8px 14px",
-    borderRadius: "4px",
-    border: "none",
-    backgroundColor: "white",
-    fontSize: "16px",
+    padding: "6px 12px",
+    borderRadius: "3px",
+    border: `1px solid ${MENDIX_COLORS.border}`,
+    backgroundColor: MENDIX_COLORS.surfaceLight,
+    color: MENDIX_COLORS.text,
+    fontSize: "14px",
     fontWeight: "bold",
     cursor: "pointer"
   },
   resetButton: {
-    padding: "8px 14px",
-    borderRadius: "4px",
-    border: "none",
-    backgroundColor: "white",
-    fontSize: "14px",
+    padding: "6px 12px",
+    borderRadius: "3px",
+    border: `1px solid ${MENDIX_COLORS.border}`,
+    backgroundColor: MENDIX_COLORS.surfaceLight,
+    color: MENDIX_COLORS.text,
+    fontSize: "13px",
     cursor: "pointer"
   },
   refreshButton: {
-    padding: "8px 14px",
-    borderRadius: "4px",
+    padding: "6px 12px",
+    borderRadius: "3px",
     border: "none",
-    backgroundColor: "#4CAF50",
-    color: "white",
-    fontSize: "14px",
+    backgroundColor: MENDIX_COLORS.primary,
+    color: MENDIX_COLORS.textBright,
+    fontSize: "13px",
     cursor: "pointer"
   },
   statsBar: {
     display: "flex",
     gap: "20px",
-    padding: "8px 20px",
-    backgroundColor: "#e3f2fd",
-    fontSize: "13px",
-    color: "#1976D2"
+    padding: "6px 16px",
+    backgroundColor: MENDIX_COLORS.surfaceLight,
+    borderBottom: `1px solid ${MENDIX_COLORS.border}`,
+    fontSize: "12px",
+    color: MENDIX_COLORS.textMuted
   },
   canvas: {
     flex: 1,
-    backgroundColor: "#fafafa",
+    backgroundColor: MENDIX_COLORS.canvas,
     cursor: "grab"
   },
   legend: {
     position: "absolute",
     bottom: "20px",
     left: "20px",
-    backgroundColor: "white",
-    padding: "15px",
-    borderRadius: "8px",
-    boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
+    backgroundColor: MENDIX_COLORS.surface,
+    padding: "12px",
+    borderRadius: "4px",
+    border: `1px solid ${MENDIX_COLORS.border}`,
+    boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
     maxWidth: "200px",
     maxHeight: "300px",
     overflowY: "auto"
   },
   legendTitle: {
-    margin: "0 0 10px 0",
-    fontSize: "13px",
-    color: "#333"
+    margin: "0 0 8px 0",
+    fontSize: "12px",
+    fontWeight: 600,
+    color: MENDIX_COLORS.textBright
   },
   legendItem: {
     display: "flex",
     alignItems: "center",
     gap: "8px",
-    marginBottom: "6px",
-    fontSize: "11px"
+    marginBottom: "5px",
+    fontSize: "11px",
+    color: MENDIX_COLORS.text
   },
   legendLine: {
     width: "30px",
     height: "0",
-    borderTop: "2px solid #666"
+    borderTop: `2px solid ${MENDIX_COLORS.textMuted}`
   },
   legendColor: {
-    width: "16px",
-    height: "16px",
-    borderRadius: "3px"
+    width: "14px",
+    height: "14px",
+    borderRadius: "2px"
   },
   detailsPanel: {
     position: "absolute",
-    top: "120px",
+    top: "100px",
     right: "20px",
-    backgroundColor: "white",
-    padding: "20px",
-    borderRadius: "8px",
-    boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
+    backgroundColor: MENDIX_COLORS.surface,
+    padding: "16px",
+    borderRadius: "4px",
+    border: `1px solid ${MENDIX_COLORS.border}`,
+    boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
     maxWidth: "300px",
-    maxHeight: "calc(100vh - 180px)",
+    maxHeight: "calc(100vh - 160px)",
     overflowY: "auto"
   },
   detailsTitle: {
-    margin: "0 0 5px 0",
-    color: "#1976D2"
+    margin: "0 0 4px 0",
+    color: MENDIX_COLORS.primary,
+    fontSize: "15px",
+    fontWeight: 600
   },
   detailsModule: {
-    margin: "0 0 5px 0",
+    margin: "0 0 4px 0",
     fontSize: "12px",
-    color: "#666"
+    color: MENDIX_COLORS.textMuted
   },
   detailsGeneralization: {
     margin: "0 0 10px 0",
     fontSize: "12px",
-    color: "#FF9800",
+    color: MENDIX_COLORS.warning,
     fontStyle: "italic"
   },
   detailsSubtitle: {
-    margin: "15px 0 8px 0",
-    fontSize: "13px",
-    color: "#333"
+    margin: "12px 0 6px 0",
+    fontSize: "12px",
+    fontWeight: 600,
+    color: MENDIX_COLORS.textBright
   },
   attributeList: {
     margin: 0,
-    padding: "0 0 0 15px",
-    fontSize: "12px"
+    padding: "0 0 0 12px",
+    fontSize: "11px",
+    color: MENDIX_COLORS.text
   },
   attributeItem: {
-    marginBottom: "4px"
+    marginBottom: "3px"
   },
   closeButton: {
-    marginTop: "15px",
-    padding: "8px 16px",
-    borderRadius: "4px",
+    marginTop: "12px",
+    padding: "6px 12px",
+    borderRadius: "3px",
     border: "none",
-    backgroundColor: "#1976D2",
-    color: "white",
+    backgroundColor: MENDIX_COLORS.primary,
+    color: MENDIX_COLORS.textBright,
     cursor: "pointer",
-    width: "100%"
+    width: "100%",
+    fontSize: "13px"
   },
   loadingContainer: {
     display: "flex",
@@ -24509,14 +24571,15 @@ var styles = {
     alignItems: "center",
     justifyContent: "center",
     height: "100vh",
-    fontSize: "16px",
-    color: "#666"
+    fontSize: "14px",
+    color: MENDIX_COLORS.textMuted,
+    backgroundColor: MENDIX_COLORS.background
   },
   spinner: {
     width: "40px",
     height: "40px",
-    border: "4px solid #f3f3f3",
-    borderTop: "4px solid #1976D2",
+    border: `4px solid ${MENDIX_COLORS.surfaceLight}`,
+    borderTop: `4px solid ${MENDIX_COLORS.primary}`,
     borderRadius: "50%",
     animation: "spin 1s linear infinite",
     marginBottom: "20px"
@@ -24527,7 +24590,8 @@ var styles = {
     alignItems: "center",
     justifyContent: "center",
     height: "100vh",
-    color: "#f44336"
+    color: MENDIX_COLORS.error,
+    backgroundColor: MENDIX_COLORS.background
   }
 };
 var styleSheet = document.createElement("style");
