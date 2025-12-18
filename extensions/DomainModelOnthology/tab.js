@@ -23592,10 +23592,13 @@ function getAttributeTypeName(type) {
 async function collectOntologyData(studioPro) {
   const entities = [];
   const associations = [];
-  const moduleNames = [];
+  const moduleInfos = [];
   const modules = await studioPro.app.model.projects.getModules();
   for (const module of modules) {
-    moduleNames.push(module.name);
+    moduleInfos.push({
+      name: module.name,
+      isMarketplace: module.fromAppStore
+    });
     const domainModel = await studioPro.app.model.domainModels.getDomainModel(module.name);
     if (domainModel) {
       for (const entity of domainModel.entities) {
@@ -23644,7 +23647,7 @@ async function collectOntologyData(studioPro) {
   return {
     entities,
     associations,
-    modules: moduleNames
+    modules: moduleInfos
   };
 }
 var MODULE_COLORS = [
@@ -23665,7 +23668,7 @@ var MODULE_COLORS = [
   "#673AB7"
 ];
 function getModuleColor(moduleName, modules) {
-  const index = modules.indexOf(moduleName);
+  const index = modules.findIndex((m) => m.name === moduleName);
   return MODULE_COLORS[index % MODULE_COLORS.length];
 }
 function calculateLayout(entities, associations) {
@@ -23959,13 +23962,24 @@ var OntologyViewer = ({ studioPro }) => {
   const [error, setError] = (0, import_react.useState)(null);
   const [positions, setPositions] = (0, import_react.useState)(/* @__PURE__ */ new Map());
   const [selectedEntity, setSelectedEntity] = (0, import_react.useState)(null);
-  const [selectedModule, setSelectedModule] = (0, import_react.useState)("all");
+  const [selectedModules, setSelectedModules] = (0, import_react.useState)(/* @__PURE__ */ new Set());
+  const [showModuleDropdown, setShowModuleDropdown] = (0, import_react.useState)(false);
   const [searchTerm, setSearchTerm] = (0, import_react.useState)("");
   const [zoom, setZoom] = (0, import_react.useState)(1);
   const [pan, setPan] = (0, import_react.useState)({ x: 0, y: 0 });
   const svgRef = (0, import_react.useRef)(null);
   const isPanning = (0, import_react.useRef)(false);
   const panStart = (0, import_react.useRef)({ x: 0, y: 0 });
+  const dropdownRef = (0, import_react.useRef)(null);
+  (0, import_react.useEffect)(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setShowModuleDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
   (0, import_react.useEffect)(() => {
     const loadData = async () => {
       try {
@@ -23973,6 +23987,8 @@ var OntologyViewer = ({ studioPro }) => {
         setError(null);
         const ontologyData = await collectOntologyData(studioPro);
         setData(ontologyData);
+        const nonMarketplaceModules = ontologyData.modules.filter((m) => !m.isMarketplace).map((m) => m.name);
+        setSelectedModules(new Set(nonMarketplaceModules));
         const initialPositions = calculateLayout(ontologyData.entities, ontologyData.associations);
         setPositions(initialPositions);
         setLoading(false);
@@ -23983,6 +23999,26 @@ var OntologyViewer = ({ studioPro }) => {
     };
     loadData();
   }, [studioPro]);
+  const toggleModule = (moduleName) => {
+    setSelectedModules((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(moduleName)) {
+        newSet.delete(moduleName);
+      } else {
+        newSet.add(moduleName);
+      }
+      return newSet;
+    });
+  };
+  const selectAllModules = (includeMarketplace) => {
+    if (data) {
+      const modules = includeMarketplace ? data.modules.map((m) => m.name) : data.modules.filter((m) => !m.isMarketplace).map((m) => m.name);
+      setSelectedModules(new Set(modules));
+    }
+  };
+  const deselectAllModules = () => {
+    setSelectedModules(/* @__PURE__ */ new Set());
+  };
   const handleNodeDrag = (0, import_react.useCallback)((id, x, y) => {
     setPositions((prev) => {
       const newPositions = new Map(prev);
@@ -24013,7 +24049,7 @@ var OntologyViewer = ({ studioPro }) => {
     setZoom((prev) => Math.max(0.2, Math.min(3, prev * delta)));
   };
   const filteredEntities = data?.entities.filter((entity) => {
-    const moduleMatch = selectedModule === "all" || entity.moduleName === selectedModule;
+    const moduleMatch = selectedModules.size === 0 || selectedModules.has(entity.moduleName);
     const searchMatch = searchTerm === "" || entity.name.toLowerCase().includes(searchTerm.toLowerCase()) || entity.moduleName.toLowerCase().includes(searchTerm.toLowerCase());
     return moduleMatch && searchMatch;
   }) || [];
@@ -24053,16 +24089,68 @@ var OntologyViewer = ({ studioPro }) => {
       onChange: (e) => setSearchTerm(e.target.value),
       style: styles.searchInput
     }
-  ), /* @__PURE__ */ import_react.default.createElement(
-    "select",
+  ), /* @__PURE__ */ import_react.default.createElement("div", { ref: dropdownRef, style: styles.moduleDropdownContainer }, /* @__PURE__ */ import_react.default.createElement(
+    "button",
     {
-      value: selectedModule,
-      onChange: (e) => setSelectedModule(e.target.value),
-      style: styles.moduleSelect
+      onClick: () => setShowModuleDropdown(!showModuleDropdown),
+      style: styles.moduleDropdownButton
     },
-    /* @__PURE__ */ import_react.default.createElement("option", { value: "all" }, "All Modules"),
-    data?.modules.map((module) => /* @__PURE__ */ import_react.default.createElement("option", { key: module, value: module }, module))
+    "Modules (",
+    selectedModules.size,
+    "/",
+    data?.modules.length || 0,
+    ") \u25BC"
+  ), showModuleDropdown && /* @__PURE__ */ import_react.default.createElement("div", { style: styles.moduleDropdownContent }, /* @__PURE__ */ import_react.default.createElement("div", { style: styles.dropdownActions }, /* @__PURE__ */ import_react.default.createElement(
+    "button",
+    {
+      onClick: () => selectAllModules(true),
+      style: styles.dropdownActionButton
+    },
+    "All"
   ), /* @__PURE__ */ import_react.default.createElement(
+    "button",
+    {
+      onClick: () => selectAllModules(false),
+      style: styles.dropdownActionButton
+    },
+    "Non-Marketplace"
+  ), /* @__PURE__ */ import_react.default.createElement(
+    "button",
+    {
+      onClick: deselectAllModules,
+      style: styles.dropdownActionButton
+    },
+    "None"
+  )), /* @__PURE__ */ import_react.default.createElement("div", { style: styles.dropdownDivider }), /* @__PURE__ */ import_react.default.createElement("div", { style: styles.moduleList }, data?.modules.map((module) => /* @__PURE__ */ import_react.default.createElement(
+    "label",
+    {
+      key: module.name,
+      style: {
+        ...styles.moduleCheckboxLabel,
+        ...module.isMarketplace ? styles.marketplaceModule : {}
+      }
+    },
+    /* @__PURE__ */ import_react.default.createElement(
+      "input",
+      {
+        type: "checkbox",
+        checked: selectedModules.has(module.name),
+        onChange: () => toggleModule(module.name),
+        style: styles.moduleCheckbox
+      }
+    ),
+    /* @__PURE__ */ import_react.default.createElement(
+      "span",
+      {
+        style: {
+          ...styles.moduleColorDot,
+          backgroundColor: getModuleColor(module.name, data.modules)
+        }
+      }
+    ),
+    module.name,
+    module.isMarketplace && /* @__PURE__ */ import_react.default.createElement("span", { style: styles.marketplaceBadge }, "MP")
+  ))))), /* @__PURE__ */ import_react.default.createElement(
     "button",
     {
       onClick: () => setZoom((prev) => Math.min(3, prev * 1.2)),
@@ -24095,6 +24183,12 @@ var OntologyViewer = ({ studioPro }) => {
           setError(null);
           const newData = await collectOntologyData(studioPro);
           setData(newData);
+          const validModules = new Set(
+            Array.from(selectedModules).filter(
+              (m) => newData.modules.some((nm) => nm.name === m)
+            )
+          );
+          setSelectedModules(validModules);
           const newPositions = calculateLayout(newData.entities, newData.associations);
           setPositions(newPositions);
           setLoading(false);
@@ -24142,10 +24236,10 @@ var OntologyViewer = ({ studioPro }) => {
         }
       );
     }))
-  ), /* @__PURE__ */ import_react.default.createElement("div", { style: styles.legend }, /* @__PURE__ */ import_react.default.createElement("h4", { style: styles.legendTitle }, "Legend"), /* @__PURE__ */ import_react.default.createElement("div", { style: styles.legendItem }, /* @__PURE__ */ import_react.default.createElement("div", { style: { ...styles.legendLine, borderStyle: "solid" } }), /* @__PURE__ */ import_react.default.createElement("span", null, "Same module association")), /* @__PURE__ */ import_react.default.createElement("div", { style: styles.legendItem }, /* @__PURE__ */ import_react.default.createElement("div", { style: { ...styles.legendLine, borderStyle: "solid", borderColor: "#FF5722" } }), /* @__PURE__ */ import_react.default.createElement("span", null, "Cross-module association")), /* @__PURE__ */ import_react.default.createElement("div", { style: styles.legendItem }, /* @__PURE__ */ import_react.default.createElement("div", { style: { ...styles.legendLine, borderStyle: "dashed" } }), /* @__PURE__ */ import_react.default.createElement("span", null, "Reference Set (N:M)")), /* @__PURE__ */ import_react.default.createElement("h4", { style: styles.legendTitle }, "Modules"), data?.modules.slice(0, 10).map((module, idx) => /* @__PURE__ */ import_react.default.createElement("div", { key: module, style: styles.legendItem }, /* @__PURE__ */ import_react.default.createElement("div", { style: {
+  ), /* @__PURE__ */ import_react.default.createElement("div", { style: styles.legend }, /* @__PURE__ */ import_react.default.createElement("h4", { style: styles.legendTitle }, "Legend"), /* @__PURE__ */ import_react.default.createElement("div", { style: styles.legendItem }, /* @__PURE__ */ import_react.default.createElement("div", { style: { ...styles.legendLine, borderStyle: "solid" } }), /* @__PURE__ */ import_react.default.createElement("span", null, "Same module association")), /* @__PURE__ */ import_react.default.createElement("div", { style: styles.legendItem }, /* @__PURE__ */ import_react.default.createElement("div", { style: { ...styles.legendLine, borderStyle: "solid", borderColor: "#FF5722" } }), /* @__PURE__ */ import_react.default.createElement("span", null, "Cross-module association")), /* @__PURE__ */ import_react.default.createElement("div", { style: styles.legendItem }, /* @__PURE__ */ import_react.default.createElement("div", { style: { ...styles.legendLine, borderStyle: "dashed" } }), /* @__PURE__ */ import_react.default.createElement("span", null, "Reference Set (N:M)")), /* @__PURE__ */ import_react.default.createElement("h4", { style: styles.legendTitle }, "Modules"), data?.modules.slice(0, 10).map((module, idx) => /* @__PURE__ */ import_react.default.createElement("div", { key: module.name, style: styles.legendItem }, /* @__PURE__ */ import_react.default.createElement("div", { style: {
     ...styles.legendColor,
     backgroundColor: MODULE_COLORS[idx % MODULE_COLORS.length]
-  } }), /* @__PURE__ */ import_react.default.createElement("span", null, module))), (data?.modules.length || 0) > 10 && /* @__PURE__ */ import_react.default.createElement("div", { style: styles.legendItem }, /* @__PURE__ */ import_react.default.createElement("span", { style: { color: "#999", fontStyle: "italic" } }, "+", (data?.modules.length || 0) - 10, " more modules"))), selectedEntity && /* @__PURE__ */ import_react.default.createElement("div", { style: styles.detailsPanel }, (() => {
+  } }), /* @__PURE__ */ import_react.default.createElement("span", null, module.name, module.isMarketplace ? " (MP)" : ""))), (data?.modules.length || 0) > 10 && /* @__PURE__ */ import_react.default.createElement("div", { style: styles.legendItem }, /* @__PURE__ */ import_react.default.createElement("span", { style: { color: "#999", fontStyle: "italic" } }, "+", (data?.modules.length || 0) - 10, " more modules"))), selectedEntity && /* @__PURE__ */ import_react.default.createElement("div", { style: styles.detailsPanel }, (() => {
     const entity = data?.entities.find((e) => e.id === selectedEntity);
     if (!entity) return null;
     const relatedAssociations = data?.associations.filter(
@@ -24201,6 +24295,90 @@ var styles = {
     border: "none",
     fontSize: "14px",
     cursor: "pointer"
+  },
+  moduleDropdownContainer: {
+    position: "relative"
+  },
+  moduleDropdownButton: {
+    padding: "8px 12px",
+    borderRadius: "4px",
+    border: "none",
+    backgroundColor: "white",
+    fontSize: "14px",
+    cursor: "pointer",
+    minWidth: "150px",
+    textAlign: "left"
+  },
+  moduleDropdownContent: {
+    position: "absolute",
+    top: "100%",
+    left: 0,
+    marginTop: "4px",
+    backgroundColor: "white",
+    borderRadius: "4px",
+    boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
+    zIndex: 1e3,
+    minWidth: "250px",
+    maxHeight: "400px",
+    overflow: "hidden",
+    display: "flex",
+    flexDirection: "column"
+  },
+  dropdownActions: {
+    display: "flex",
+    gap: "4px",
+    padding: "8px",
+    backgroundColor: "#f5f5f5",
+    borderBottom: "1px solid #e0e0e0"
+  },
+  dropdownActionButton: {
+    padding: "4px 8px",
+    borderRadius: "3px",
+    border: "1px solid #ccc",
+    backgroundColor: "white",
+    fontSize: "11px",
+    cursor: "pointer",
+    flex: 1
+  },
+  dropdownDivider: {
+    height: "1px",
+    backgroundColor: "#e0e0e0"
+  },
+  moduleList: {
+    overflowY: "auto",
+    maxHeight: "340px",
+    padding: "4px 0"
+  },
+  moduleCheckboxLabel: {
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    padding: "6px 12px",
+    cursor: "pointer",
+    fontSize: "13px",
+    color: "#333",
+    transition: "background-color 0.1s"
+  },
+  marketplaceModule: {
+    color: "#888",
+    fontStyle: "italic"
+  },
+  moduleCheckbox: {
+    cursor: "pointer"
+  },
+  moduleColorDot: {
+    width: "12px",
+    height: "12px",
+    borderRadius: "2px",
+    flexShrink: 0
+  },
+  marketplaceBadge: {
+    marginLeft: "auto",
+    fontSize: "10px",
+    padding: "2px 4px",
+    borderRadius: "3px",
+    backgroundColor: "#e0e0e0",
+    color: "#666"
   },
   zoomButton: {
     padding: "8px 14px",

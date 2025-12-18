@@ -709,16 +709,68 @@ const OntologyViewer: React.FC<OntologyViewerProps> = ({ studioPro }) => {
                         onChange={(e) => setSearchTerm(e.target.value)}
                         style={styles.searchInput}
                     />
-                    <select
-                        value={selectedModule}
-                        onChange={(e) => setSelectedModule(e.target.value)}
-                        style={styles.moduleSelect}
-                    >
-                        <option value="all">All Modules</option>
-                        {data?.modules.map(module => (
-                            <option key={module} value={module}>{module}</option>
-                        ))}
-                    </select>
+                    {/* Multi-select module dropdown */}
+                    <div ref={dropdownRef} style={styles.moduleDropdownContainer}>
+                        <button
+                            onClick={() => setShowModuleDropdown(!showModuleDropdown)}
+                            style={styles.moduleDropdownButton}
+                        >
+                            Modules ({selectedModules.size}/{data?.modules.length || 0}) ▼
+                        </button>
+                        {showModuleDropdown && (
+                            <div style={styles.moduleDropdownContent}>
+                                <div style={styles.dropdownActions}>
+                                    <button 
+                                        onClick={() => selectAllModules(true)}
+                                        style={styles.dropdownActionButton}
+                                    >
+                                        All
+                                    </button>
+                                    <button 
+                                        onClick={() => selectAllModules(false)}
+                                        style={styles.dropdownActionButton}
+                                    >
+                                        Non-Marketplace
+                                    </button>
+                                    <button 
+                                        onClick={deselectAllModules}
+                                        style={styles.dropdownActionButton}
+                                    >
+                                        None
+                                    </button>
+                                </div>
+                                <div style={styles.dropdownDivider} />
+                                <div style={styles.moduleList}>
+                                    {data?.modules.map(module => (
+                                        <label 
+                                            key={module.name} 
+                                            style={{
+                                                ...styles.moduleCheckboxLabel,
+                                                ...(module.isMarketplace ? styles.marketplaceModule : {})
+                                            }}
+                                        >
+                                            <input
+                                                type="checkbox"
+                                                checked={selectedModules.has(module.name)}
+                                                onChange={() => toggleModule(module.name)}
+                                                style={styles.moduleCheckbox}
+                                            />
+                                            <span 
+                                                style={{
+                                                    ...styles.moduleColorDot,
+                                                    backgroundColor: getModuleColor(module.name, data.modules)
+                                                }}
+                                            />
+                                            {module.name}
+                                            {module.isMarketplace && (
+                                                <span style={styles.marketplaceBadge}>MP</span>
+                                            )}
+                                        </label>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
                     <button 
                         onClick={() => setZoom(prev => Math.min(3, prev * 1.2))}
                         style={styles.zoomButton}
@@ -744,6 +796,13 @@ const OntologyViewer: React.FC<OntologyViewerProps> = ({ studioPro }) => {
                                 setError(null);
                                 const newData = await collectOntologyData(studioPro);
                                 setData(newData);
+                                // Re-apply module filter - keep current selections but validate they still exist
+                                const validModules = new Set(
+                                    Array.from(selectedModules).filter(m => 
+                                        newData.modules.some(nm => nm.name === m)
+                                    )
+                                );
+                                setSelectedModules(validModules);
                                 const newPositions = calculateLayout(newData.entities, newData.associations);
                                 setPositions(newPositions);
                                 setLoading(false);
@@ -826,12 +885,12 @@ const OntologyViewer: React.FC<OntologyViewerProps> = ({ studioPro }) => {
                 </div>
                 <h4 style={styles.legendTitle}>Modules</h4>
                 {data?.modules.slice(0, 10).map((module, idx) => (
-                    <div key={module} style={styles.legendItem}>
+                    <div key={module.name} style={styles.legendItem}>
                         <div style={{ 
                             ...styles.legendColor, 
                             backgroundColor: MODULE_COLORS[idx % MODULE_COLORS.length] 
                         }}></div>
-                        <span>{module}</span>
+                        <span>{module.name}{module.isMarketplace ? " (MP)" : ""}</span>
                     </div>
                 ))}
                 {(data?.modules.length || 0) > 10 && (
@@ -944,6 +1003,90 @@ const styles: Record<string, React.CSSProperties> = {
         border: "none",
         fontSize: "14px",
         cursor: "pointer"
+    },
+    moduleDropdownContainer: {
+        position: "relative" as const
+    },
+    moduleDropdownButton: {
+        padding: "8px 12px",
+        borderRadius: "4px",
+        border: "none",
+        backgroundColor: "white",
+        fontSize: "14px",
+        cursor: "pointer",
+        minWidth: "150px",
+        textAlign: "left" as const
+    },
+    moduleDropdownContent: {
+        position: "absolute" as const,
+        top: "100%",
+        left: 0,
+        marginTop: "4px",
+        backgroundColor: "white",
+        borderRadius: "4px",
+        boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
+        zIndex: 1000,
+        minWidth: "250px",
+        maxHeight: "400px",
+        overflow: "hidden",
+        display: "flex",
+        flexDirection: "column" as const
+    },
+    dropdownActions: {
+        display: "flex",
+        gap: "4px",
+        padding: "8px",
+        backgroundColor: "#f5f5f5",
+        borderBottom: "1px solid #e0e0e0"
+    },
+    dropdownActionButton: {
+        padding: "4px 8px",
+        borderRadius: "3px",
+        border: "1px solid #ccc",
+        backgroundColor: "white",
+        fontSize: "11px",
+        cursor: "pointer",
+        flex: 1
+    },
+    dropdownDivider: {
+        height: "1px",
+        backgroundColor: "#e0e0e0"
+    },
+    moduleList: {
+        overflowY: "auto" as const,
+        maxHeight: "340px",
+        padding: "4px 0"
+    },
+    moduleCheckboxLabel: {
+        display: "flex",
+        alignItems: "center",
+        gap: "8px",
+        padding: "6px 12px",
+        cursor: "pointer",
+        fontSize: "13px",
+        color: "#333",
+        transition: "background-color 0.1s"
+    },
+    marketplaceModule: {
+        color: "#888",
+        fontStyle: "italic" as const
+    },
+    moduleCheckbox: {
+        cursor: "pointer"
+    },
+    moduleColorDot: {
+        width: "12px",
+        height: "12px",
+        borderRadius: "2px",
+        flexShrink: 0
+    },
+    marketplaceBadge: {
+        marginLeft: "auto",
+        fontSize: "10px",
+        padding: "2px 4px",
+        borderRadius: "3px",
+        backgroundColor: "#e0e0e0",
+        color: "#666"
     },
     zoomButton: {
         padding: "8px 14px",
