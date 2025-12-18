@@ -32,10 +32,9 @@ A Mendix Studio Pro extension that visualizes the ontology of all domain models,
 
 ### From Release
 
-1. Download the latest `.mxext` file from the [Releases](../../releases) page
-2. In Mendix Studio Pro, go to **Extensions** → **Install Extension...**
-3. Select the downloaded `.mxext` file
-
+1. Download the latest zip release from the [Releases](../../releases) page
+2. unzip the folder
+3. place the folder in your <app>/extensions/ folder
 ### From Source
 
 1. Clone this repository:
